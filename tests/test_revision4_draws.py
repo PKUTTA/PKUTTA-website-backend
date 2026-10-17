@@ -59,22 +59,23 @@ class SeededDrawTests(unittest.TestCase):
         self.assertEqual(stage, draw_knockout(entrants, 4, rng_seed=23))
         self.assertEqual(entrants, original)
         slots = stage["slots"]
-        first_slots = [slots[2 * index] for index in range(8)]
-        second_slots = [slots[2 * index + 1] for index in range(8)]
-        self.assertEqual(name(slots[0]), "12")
-        self.assertEqual(name(slots[14]), "11")
         positions = {name(slot): index for index, slot in enumerate(slots) if slot["kind"] == "player"}
+        self.assertEqual(positions["12"], 0)
+        self.assertEqual(positions["11"], 15)
+        self.assertEqual({positions["10"], positions["9"]}, {7, 8})
+        self.assertEqual({positions[str(seed)] for seed in range(5, 9)}, {3, 4, 11, 12})
         self.assertEqual({positions[str(seed)] // 4 for seed in (12, 11, 10, 9)}, set(range(4)))
         self.assertEqual({positions[str(seed)] // 2 for seed in range(5, 13)}, set(range(8)))
-        self.assertEqual({name(slot) for slot in second_slots if slot["kind"] == "player"}, {"4", "3", "2", "1"})
-        self.assertEqual(sum(slot["kind"] == "bye" for slot in second_slots), 4)
+        byes = {index for index, slot in enumerate(slots) if slot["kind"] == "bye"}
+        self.assertEqual(byes, {positions[str(seed)] ^ 1 for seed in (12, 11, 10, 9)})
+        self.assertEqual({positions[str(seed)] ^ 1 for seed in range(5, 9)}, {positions[str(seed)] for seed in range(1, 5)})
         self.assertEqual(len(stage["matches"]), 15)
 
     def test_knockout_accepts_nonseed_level_and_small_brackets(self) -> None:
         entrants = [entrant(str(index), max(-1, index - 3)) for index in range(9)]
         stage = draw_knockout(entrants, 4, rng_seed=3)
         self.assertEqual(name(stage["slots"][0]), "8")
-        self.assertEqual(name(stage["slots"][14]), "7")
+        self.assertEqual(name(stage["slots"][15]), "7")
         self.assertEqual(sum(slot["kind"] == "bye" for slot in stage["slots"]), 7)
         small = draw_knockout([entrant("A", 2), entrant("B", 1), entrant("C", 0)], 2, rng_seed=3)
         self.assertEqual(len(small["matches"]), 3)

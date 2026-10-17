@@ -58,8 +58,8 @@ class RevisionSixStorageTests(unittest.TestCase):
                 self.assertEqual([item["seed"] for item in entrants], list(seeds))
                 stage = self.db.draw_stage("revision-six", event, "knockout")["stages"]["knockout"]["data"]
                 self.assertEqual(stage["slots"][0], entrants[0]["participant"])
-                self.assertEqual(stage["slots"][6], entrants[1]["participant"])
-                self.assertIn(entrants[2]["participant"], stage["slots"][::2])
+                self.assertEqual(stage["slots"][7], entrants[1]["participant"])
+                self.assertIn(stage["slots"].index(entrants[2]["participant"]), (2, 5))
                 self.assertEqual(sum(slot["kind"] == "bye" for slot in stage["slots"]), 3)
                 self.assertCountEqual(
                     [slot for slot in stage["slots"] if slot["kind"] != "bye"],

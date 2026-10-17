@@ -701,18 +701,24 @@ def _separated(
 def draw_knockout(
     entrants: Sequence[Mapping[str, Any]], rounds: int, *, rng_seed: int | None = None
 ) -> dict[str, Any]:
-    """Place seeds in balanced regions, group winners in A slots, then others.
+    """Place seeds at ITTF positions, group winners in free matches, then others.
 
     Positive seed values rank descending, with equal values drawn randomly.
-    The first two seeds use the first and last opening A slots; ranks 3-4,
-    5-8, etc. each draw an A slot in a still-empty quarter/eighth/etc. Zero
-    seeds are nonseed group winners and draw remaining A slots. Byes are at
-    most one per opening match and face seeds in order, then group winners,
-    then random entrants. Everyone else draws from the remaining positions;
-    entrants with ``group`` and ``group_rank`` keep away from group-mates
-    (2nd in the other half, 3rd-4th in other quarters, and so on), relaxing
-    one level at a time only if no arrangement exists. The same placement
-    works for brackets smaller than eight positions.
+    Following ITTF seeding by ranking, rank 1 takes the top of the first half
+    and rank 2 the bottom of the second half. Ranks 3-4 are drawn between the
+    bottom of the first half and the top of the second half, ranks 5-8
+    between the bottom places of the odd-numbered quarters and the top places
+    of the even-numbered quarters, ranks 9-16 likewise for eighths, and so on
+    while each opening match can hold at most one seed. Zero seeds are nonseed
+    group winners and draw opening matches without a seed, taking the upper
+    place in the first half and the lower place in the second half so the
+    bracket stays mirror-symmetric. Byes are at most one per opening match and
+    face seeds in order, then group winners, then random entrants. Everyone
+    else draws from the remaining positions; entrants with ``group`` and
+    ``group_rank`` keep away from group-mates (2nd in the other half, 3rd-4th
+    in other quarters, and so on), relaxing one level at a time only if no
+    arrangement exists. The same placement works for brackets smaller than
+    eight positions.
     """
     if not isinstance(rounds, int) or isinstance(rounds, bool) or rounds < 1:
         raise ValueError("Knockout rounds must be a positive integer.")
@@ -732,38 +738,41 @@ def draw_knockout(
         slot_indices[slot_index] = entrant_index
         assigned.add(entrant_index)
 
+    def open_matches() -> list[int]:
+        # Mirror-symmetric "first" place of each opening match nobody occupies.
+        return [
+            position if position < capacity // 2 else position + 1
+            for position in range(0, capacity, 2)
+            if slot_indices[position] is None and slot_indices[position + 1] is None
+        ]
+
     if seed_indices:
         place(seed_indices[0], 0)
-    if len(seed_indices) > 1 and slot_indices[capacity - 2] is None:
-        place(seed_indices[1], capacity - 2)
-    for tier in range(2, rounds):
-        tier_seeds = seed_indices[2 ** (tier - 1) : 2**tier]
+    if len(seed_indices) > 1:
+        place(seed_indices[1], capacity - 1)
+    # Ranks 2**tier+1 .. 2**(tier+1) are drawn among the bottom places of the
+    # odd-numbered and the top places of the even-numbered 1/2**tier regions.
+    for tier in range(1, rounds - 1):
+        tier_seeds = seed_indices[2**tier : 2 ** (tier + 1)]
         if not tier_seeds:
             break
-        region_count = 2**tier
-        span = capacity // region_count
-        empty_regions = [
-            region for region in range(region_count)
-            if all(slot_indices[position] is None for position in range(region * span, (region + 1) * span))
-        ]
-        rng.shuffle(empty_regions)
-        for entrant_index, region in zip(tier_seeds, empty_regions):
-            place(entrant_index, rng.choice(list(range(region * span, (region + 1) * span, 2))))
-    first_slots = [position for position in range(0, capacity, 2) if slot_indices[position] is None]
+        span = capacity >> tier
+        positions = [slot for boundary in range(span, capacity, 2 * span) for slot in (boundary - 1, boundary)]
+        for entrant_index, slot_index in zip(tier_seeds, rng.sample(positions, len(tier_seeds))):
+            place(entrant_index, slot_index)
+    first_slots = open_matches()
     rng.shuffle(first_slots)
     group_winners = [index for index in randomized if seeds[index] == 0]
     for entrant_index, slot_index in zip(group_winners, first_slots):
         place(entrant_index, slot_index)
 
     # Byes: at most one per opening match, given to seeds in order, then to
-    # group winners in their drawn order, then opposite random empty A slots.
-    bye_slots: set[int] = set()
+    # group winners in their drawn order, then in random empty matches.
     bye_count = capacity - len(participants)
     priority = [index for index in seed_indices + group_winners if index in assigned]
     holders = [slot_indices.index(index) for index in priority[:bye_count]]
-    empty_first = [position for position in range(0, capacity, 2) if slot_indices[position] is None]
-    holders += rng.sample(empty_first, bye_count - len(holders))
-    bye_slots.update(position + 1 for position in holders)
+    holders += rng.sample(open_matches(), bye_count - len(holders))
+    bye_slots = {position ^ 1 for position in holders}
 
     # Remaining entrants avoid group-mates already in the bracket: the k-th
     # qualifier of a group (0-based) avoids earlier ones within the same

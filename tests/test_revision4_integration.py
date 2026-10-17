@@ -64,9 +64,9 @@ class SeedIntegrationTests(unittest.TestCase):
 
         drawn = self.database.draw_stage("revision-four", event, "knockout")
         slots = drawn["stages"]["knockout"]["data"]["slots"]
-        first_positions = [slots[2 * quarter]["members"][0] for quarter in range(4)]
-        self.assertEqual([seed_by_name[name] for name in first_positions], [0, 0, 0, 0])
-        self.assertEqual({seed_by_name[slot["members"][0]] for slot in slots[1::2]}, {-1})
+        for position in range(0, len(slots), 2):
+            pair = slots[position:position + 2]
+            self.assertEqual(sorted(seed_by_name[slot["members"][0]] for slot in pair), [-1, 0])
 
     def test_unequal_qualifier_counts_keep_winner_and_other_categories(self) -> None:
         csv_text = "\n".join(f"选手{i},北大,0" for i in range(1, 7))

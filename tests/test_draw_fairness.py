@@ -47,7 +47,8 @@ class KnockoutDrawFairnessTests(unittest.TestCase):
             stage = logic.draw_knockout(entries, 4, rng_seed=rng_seed)
             opening = [match for match in stage["matches"] if match["round"] == 0]
             self.assertFalse(any(m["a"]["kind"] == m["b"]["kind"] == "bye" for m in opening))
-            with_bye = {name(m["a"]) for m in opening if m["b"]["kind"] == "bye"}
+            with_bye = {name(m["b"] if m["a"]["kind"] == "bye" else m["a"])
+                        for m in opening if "bye" in (m["a"]["kind"], m["b"]["kind"])}
             self.assertTrue({"S1", "S2", "S3", "W1", "W2"} <= with_bye)
 
     def test_unseeded_bracket_has_one_bye_per_match_at_most(self) -> None:

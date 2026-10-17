@@ -154,27 +154,33 @@ class BalancedKnockoutDrawTests(unittest.TestCase):
             stage = logic.draw_knockout(entries, 4, rng_seed=rng_seed)
             positions = {slot["members"][0]: position for position, slot in enumerate(stage["slots"])}
             self.assertEqual(positions["1"], 0)
-            self.assertEqual(positions["2"], 14)
+            self.assertEqual(positions["2"], 15)
+            self.assertEqual({positions["3"], positions["4"]}, {7, 8})
+            self.assertEqual({positions[str(index)] for index in range(5, 9)}, {3, 4, 11, 12})
             self.assertEqual({positions[str(index)] // 4 for index in range(1, 5)}, {0, 1, 2, 3})
             self.assertEqual({positions[str(index)] // 2 for index in range(1, 9)}, set(range(8)))
-            self.assertTrue(all(positions[str(index)] % 2 == 0 for index in range(1, 9)))
         self.assertEqual(entries, original)
         self.assertEqual(logic.draw_knockout(entries, 4, rng_seed=4), logic.draw_knockout(entries, 4, rng_seed=4))
 
-    def test_zero_group_winners_take_free_first_slots(self) -> None:
+    def test_zero_group_winners_take_matches_without_seeds(self) -> None:
         entries = [entrant("seed1", 2), entrant("seed2", 1)]
         entries.extend(entrant(f"winner{index}", 0) for index in range(6))
         entries.extend(entrant(f"other{index}", -1) for index in range(4))
         stage = logic.draw_knockout(entries, 4, rng_seed=3)
-        self.assertTrue(all(stage["slots"][position]["kind"] == "player" for position in range(0, 16, 2)))
-        self.assertTrue(all(stage["slots"][position]["members"][0].startswith(("seed", "winner")) for position in range(0, 16, 2)))
+        leading = lambda slot: slot["kind"] == "player" and slot["members"][0].startswith(("seed", "winner"))
+        for position in range(0, 16, 2):
+            self.assertEqual(sum(map(leading, stage["slots"][position:position + 2])), 1)
+        # Group winners mirror across the halves: upper place on top, lower place below.
+        for position, slot in enumerate(stage["slots"]):
+            if slot["kind"] == "player" and slot["members"][0].startswith("winner"):
+                self.assertEqual(position % 2, int(position >= 8))
         self.assertEqual(sum(slot["kind"] == "bye" for slot in stage["slots"]), 4)
 
     def test_small_brackets_seed_one_and_validate_categories(self) -> None:
         entries = [entrant("A", 1), entrant("B", 0), entrant("C", -1)]
         stage = logic.draw_knockout(entries, 2, rng_seed=3)
         self.assertEqual(stage["slots"][0], player("A"))
-        self.assertEqual(stage["slots"][2], player("B"))
+        self.assertEqual(stage["slots"][3], player("B"))
         two = logic.draw_knockout([entrant("A", 2), entrant("B", 1)], 1, rng_seed=2)
         self.assertEqual(two["slots"][0], player("A"))
         for seed in (-2, True, 1.5):
